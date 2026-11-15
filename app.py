@@ -1,59 +1,69 @@
 import streamlit as st
-from PIL import Image
-import google.generativeai as genai
+from PIL import Image, ImageOps, ImageFilter, ImageEnhance
 import io
 
-st.set_page_config(page_title="Power 9 - Style Converter", layout="wide")
-st.title("👑 Power 9 - Style Converter - Cloud Version")
+st.set_page_config(page_title="Power 9 - Classroom Style Converter", layout="centered")
+st.title("Power 9 - Classroom Style Converter")
+st.success("✅ No Limit! Convert Unlimited Images - No Google, No API Key Needed!")
 
-# KEY FROM SECRETS - Safe, Not in Code
-try:
-    API_KEY = st.secrets["GEMINI_API_KEY"]
-    genai.configure(api_key=API_KEY)
-    model = genai.GenerativeModel("gemini-2.5-flash-image")
-    st.success("✅ Connected to Gemini - Ready!")
-except:
-    st.warning("⚠️ Key not added yet in Streamlit Secrets. Add it after deploy.")
-    model = None
+style = st.selectbox("Choose Style - 9 Styles:", [
+    "1. Pencil Sketch",
+    "2. Watercolor Effect",
+    "3. Cartoon / Poster",
+    "4. Black & White Classic",
+    "5. Sepia Vintage",
+    "6. Bright Pop Art",
+    "7. Soft Blur Dream",
+    "8. High Contrast Bold",
+    "9. Warm Sunset"
+])
 
-# 1. REFERENCE
-st.subheader("1. Our Reference Style - LOCKED")
-ref_file = st.file_uploader("Upload Our Classroom Image", type=["png","jpg","jpeg"], key="ref")
-if ref_file:
-    st.image(Image.open(ref_file), width=300, caption="Our Style")
+uploaded = st.file_uploader("Upload Your Image", type=["jpg","jpeg","png"])
 
-# 2. INPUT
-st.subheader("2. Upload Any Image")
-input_file = st.file_uploader("Upload Tree / River / Cloud / Flower", type=["png","jpg","jpeg"], key="input")
-if input_file:
-    st.image(Image.open(input_file), width=300, caption="Original")
-
-object_name = st.text_input("What is this? Example: Tree, River, Cloud")
-
-# 3. CONVERT
-if st.button("🔥 CONVERT TO OUR STYLE"):
-    if ref_file and input_file and object_name and model:
-        with st.spinner("Converting... 10 sec... Please wait..."):
-            ref_img = Image.open(ref_file)
-            input_img = Image.open(input_file)
-            prompt = f"""
-            Take the second image of {object_name}. Keep object shape exactly same.
-            Change ONLY style to match first reference image style:
-            3D cute cartoon for kids, warm orange-yellow lighting, soft edges,
-            big happy eyes if character, vertical 9:16 kids poster, same classroom background.
-            NO text, NO watermark.
-            """
-            response = model.generate_content([prompt, ref_img, input_img])
-            # Gemini returns image
-            for part in response.candidates[0].content.parts:
-                if hasattr(part, 'inline_data') and part.inline_data:
-                    out_img = Image.open(io.BytesIO(part.inline_data.data))
-                    st.image(out_img, caption=f"Our Style {object_name} - DONE!")
-                    buf = io.BytesIO()
-                    out_img.save(buf, format="PNG")
-                    st.download_button("⬇️ Download Our Style Image", buf.getvalue(), f"our-style-{object_name}.png", "image/png")
-                    break
-            else:
-                st.error("AI did not return image. Try again.")
-    else:
-        st.error("Boss, Upload Both Images + Write Name + Add Key in Secrets!")
+if uploaded:
+    img = Image.open(uploaded).convert("RGB")
+    st.image(img, caption="Original Image", use_column_width=True)
+    if st.button("CONVERT NOW 🚀"):
+        if "Pencil" in style:
+            out = ImageOps.grayscale(img)
+            out = ImageOps.invert(out)
+            out = out.filter(ImageFilter.GaussianBlur(2))
+            out = ImageOps.invert(out)
+            out = ImageEnhance.Contrast(out).enhance(1.5)
+            out = out.convert("RGB")
+        elif "Watercolor" in style:
+            out = img.filter(ImageFilter.SMOOTH_MORE)
+            out = ImageEnhance.Color(out).enhance(1.4)
+            out = ImageEnhance.Brightness(out).enhance(1.1)
+        elif "Cartoon" in style:
+            out = img.filter(ImageFilter.EDGE_ENHANCE_MORE)
+            out = ImageEnhance.Color(out).enhance(1.8)
+            out = ImageEnhance.Contrast(out).enhance(1.3)
+        elif "Black" in style:
+            out = ImageOps.grayscale(img).convert("RGB")
+            out = ImageEnhance.Contrast(out).enhance(1.2)
+        elif "Sepia" in style:
+            gray = ImageOps.grayscale(img)
+            out = ImageOps.colorize(gray, black="#2b1a00", white="#ffE8b0")
+        elif "Bright" in style:
+            out = ImageEnhance.Color(img).enhance(2.0)
+            out = ImageEnhance.Brightness(out).enhance(1.2)
+            out = ImageEnhance.Contrast(out).enhance(1.2)
+        elif "Soft" in style:
+            out = img.filter(ImageFilter.GaussianBlur(1.5))
+            out = ImageEnhance.Brightness(out).enhance(1.1)
+        elif "High Contrast" in style:
+            out = ImageEnhance.Contrast(img).enhance(2.0)
+            out = ImageEnhance.Color(out).enhance(1.2)
+        else:
+            out = ImageEnhance.Color(img).enhance(1.3)
+            out = ImageEnhance.Brightness(out).enhance(1.05)
+            r,g,b = out.split()
+            r = r.point(lambda i: min(255, int(i*1.15)))
+            out = Image.merge("RGB", (r,g,b))
+        st.image(out, caption=f"Converted - {style}", use_column_width=True)
+        buf = io.BytesIO()
+        out.save(buf, format="PNG")
+        st.download_button("Download Converted Image 📥", buf.getvalue(), file_name="power9_converted.png", mime="image/png")
+        st.balloons()
+        st.success("Done! Convert another image - Unlimited!")
